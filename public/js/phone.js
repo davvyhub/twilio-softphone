@@ -13,9 +13,6 @@ const Phone = (() => {
   let tokenRefreshTimer = null;
   let currentStatus = 'offline';
 
-  // DOM elements (populated in init)
-  let els = {};
-
   // ── Status management ────────────────────────────────────────────────────
   function setStatus(status, label) {
     currentStatus = status;
@@ -122,9 +119,11 @@ const Phone = (() => {
       });
 
       device.on('error', (err) => {
+        const msg = err.message || String(err);
+        const code = err.code ? ` [code ${err.code}]` : '';
         console.error('[Phone] Device error:', err);
         setStatus('offline', 'Error');
-        UI.toast(`Softphone error: ${err.message}`, 'error');
+        UI.toast(`Twilio error${code}: ${msg}`, 'error', 8000);
       });
 
       device.on('incoming', handleIncomingCall);
@@ -136,9 +135,11 @@ const Phone = (() => {
       await device.register();
       scheduleTokenRefresh(data.ttl || 3600);
     } catch (err) {
+      const msg = err.message || String(err);
+      const code = err.code ? ` [code ${err.code}]` : '';
       console.error('[Phone] Init error:', err);
       setStatus('offline', 'Offline');
-      UI.toast('Failed to initialize softphone. Check your Twilio credentials.', 'error');
+      UI.toast(`Failed to initialize softphone${code}: ${msg}`, 'error', 8000);
     }
   }
 
