@@ -31,8 +31,14 @@ async function login(req, res) {
     req.session.authenticated = true;
     req.session.loginTime = new Date().toISOString();
 
-    logger.info('Successful login', { ip: req.ip });
-    res.json({ success: true, message: 'Logged in successfully' });
+    req.session.save((err) => {
+      if (err) {
+        logger.error('Session save error', { error: err.message });
+        return res.status(500).json({ error: 'Session could not be saved' });
+      }
+      logger.info('Successful login', { ip: req.ip });
+      res.json({ success: true, message: 'Logged in successfully' });
+    });
   } catch (err) {
     logger.error('Login error', { error: err.message });
     res.status(500).json({ error: 'Internal server error' });
