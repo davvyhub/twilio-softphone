@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Softphone</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/main.css" />
+  <link rel="stylesheet" href="/css/phone.css" />
+  <link rel="stylesheet" href="/css/call-log.css" />
+  <link rel="stylesheet" href="/css/contacts.css" />
+  <style>
+    /* ── Dashboard styles (inline — no separate file needed) ─────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 900px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 500px) { .stats-grid { grid-template-columns: 1fr 1fr; } }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+    }
+
+    .stat-value {
+      font-family: var(--font-mono);
+      font-size: 32px;
+      font-weight: 500;
+      color: var(--text-primary);
+      line-height: 1;
+    }
+
+    .stat-card.missed .stat-value { color: var(--accent-red); }
+    .stat-card.active .stat-value { color: var(--accent-green); }
+
+    .dash-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 700px) { .dash-grid { grid-template-columns: 1fr; } }
+
+    .dash-recent-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border-muted);
+    }
+
+    .dash-recent-row:last-child { border-bottom: none; }
+
+    .dash-recent-row.missed .call-contact-name { color: var(--accent-red); }
+
+    /* ── Hour chart ──────────────────────────────────────────────────────── */
+    .hour-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+      height: 80px;
+      padding: 0 4px;
+    }
+
+    .hour-bar-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100%;
+      justify-content: flex-end;
+      gap: 2px;
+      cursor: default;
+    }
+
+    .hour-bar {
+      width: 100%;
+      background: var(--accent-blue);
+      border-radius: 2px 2px 0 0;
+      min-height: 2px;
+      transition: background var(--transition-fast);
+      opacity: 0.7;
+    }
+
+    .hour-bar-wrap:hover .hour-bar { opacity: 1; }
+
+    .hour-label {
+      font-size: 8px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      line-height: 1;
+    }
+
+    /* Calls table on larger screens */
+    @media (max-width: 600px) {
+      .calls-table th:nth-child(4),
+      .calls-table td:nth-child(4) { display: none; }
+      .calls-table th:nth-child(5),
+      .calls-table td:nth-child(5) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- ── App Shell ─────────────────────────────────────────────────────── -->
+  <div class="app-shell">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-brand">
+        <span class="topbar-brand-icon">☎️</span>
+        Softphone
+      </div>
+      <div class="topbar-actions">
+        <button class="logout-btn" id="btn-logout">Sign Out</button>
+      </div>
+    </header>
+
+    <!-- Tab Navigation -->
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="dialpad">📞 Dialpad</button>
+      <button class="tab-btn" data-tab="calls">
+        📋 Recent Calls
+        <span class="tab-badge" id="missed-badge"></span>
+      </button>
+      <button class="tab-btn" data-tab="contacts">👤 Contacts</button>
+      <button class="tab-btn" data-tab="dashboard">📊 Dashboard</button>
+    </nav>
+
+    <!-- ── Tab 1: Dialpad ─────────────────────────────────────────────── -->
+    <main id="tab-dialpad" class="tab-content active">
+      <div class="phone-container">
+        <div class="phone-panel">
+
+          <!-- Status strip -->
+          <div class="status-strip offline" id="status-strip">
+            <span class="status-dot"></span>
+            <span class="status-text">Offline</span>
+          </div>
+
+          <!-- Number display -->
+          <div class="number-display-wrap">
+            <input
+              type="tel"
+              id="number-display"
+              class="number-display"
+              placeholder="Enter number…"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button class="backspace-btn" id="btn-backspace" title="Backspace">⌫</button>
+          </div>
+
+          <!-- Call timer -->
+          <div class="call-timer" id="call-timer">00:00</div>
+
+          <!-- Dialpad -->
+          <div class="dialpad">
+            <button class="dial-key" data-digit="1"><span class="dial-key-digit">1</span><span class="dial-key-letters"></span></button>
+            <button class="dial-key" data-digit="2"><span class="dial-key-digit">2</span><span class="dial-key-letters">ABC</span></button>
+            <button class="dial-key" data-digit="3"><span class="dial-key-digit">3</span><span class="dial-key-letters">DEF</span></button>
+            <button class="dial-key" data-digit="4"><span class="dial-key-digit">4</span><span class="dial-key-letters">GHI</span></button>
+            <button class="dial-key" data-digit="5"><span class="dial-key-digit">5</span><span class="dial-key-letters">JKL</span></button>
+            <button class="dial-key" data-digit="6"><span class="dial-key-digit">6</span><span class="dial-key-letters">MNO</span></button>
+            <button class="dial-key" data-digit="7"><span class="dial-key-digit">7</span><span class="dial-key-letters">PQRS</span></button>
+            <button class="dial-key" data-digit="8"><span class="dial-key-digit">8</span><span class="dial-key-letters">TUV</span></button>
+            <button class="dial-key" data-digit="9"><span class="dial-key-digit">9</span><span class="dial-key-letters">WXYZ</span></button>
+            <button class="dial-key" data-digit="*"><span class="dial-key-digit">*</span><span class="dial-key-letters"></span></button>
+            <button class="dial-key" data-digit="0"><span class="dial-key-digit">0</span><span class="dial-key-letters">+</span></button>
+            <button class="dial-key" data-digit="#"><span class="dial-key-digit">#</span><span class="dial-key-letters"></span></button>
+          </div>
+
+          <!-- Call controls -->
+          <div class="call-controls">
+            <!-- In-call options (mute, volume) -->
+            <div class="in-call-options" id="in-call-options">
+              <button class="in-call-btn" id="btn-mute">
+                <span class="in-call-btn-icon">🎙️</span>
+                <span class="in-call-btn-label">Mute</span>
+              </button>
+              <div class="in-call-btn" style="cursor:default;flex-direction:column;gap:6px;padding:10px 8px">
+                <div class="volume-row" style="width:100%">
+                  <span class="volume-icon">🔈</span>
+                  <input type="range" id="volume-slider" class="volume-slider" min="0" max="1" step="0.05" value="0.7" />
+                  <span class="volume-icon">🔊</span>
+                </div>
+                <span class="in-call-btn-label">Volume</span>
+              </div>
+            </div>
+
+            <button class="call-btn call-btn-call" id="btn-call">
+              <span>📞</span> Call
+            </button>
+            <button class="call-btn call-btn-hangup" id="btn-hangup">
+              <span>📵</span> Hang Up
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </main>
+
+    <!-- ── Tab 2: Recent Calls ─────────────────────────────────────────── -->
+    <main id="tab-calls" class="tab-content">
+      <div class="call-log-header">
+        <h2>Recent Calls</h2>
+        <div class="filter-group">
+          <button class="filter-btn active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="missed">Missed</button>
+          <button class="filter-btn" data-filter="inbound">Inbound</button>
+          <button class="filter-btn" data-filter="outbound">Outbound</button>
+        </div>
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="search" id="calls-search" class="search-input" placeholder="Search name or number…" />
+        </div>
+      </div>
+
+      <div class="calls-table-wrap">
+        <table class="calls-table">
+          <thead>
+            <tr>
+              <th style="width:40px"></th>
+              <th>Contact / Number</th>
+              <th>Status</th>
+              <th>Duration</th>
+              <th>Time</th>
+              <th style="width:120px">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="calls-tbody">
+            <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted)">Loading…</td></tr>
+          </tbody>
+        </table>
+
+        <div class="pagination">
+          <span id="pagination-info" style="font-size:13px;color:var(--text-muted)"></span>
+          <div class="pagination-controls">
+            <button class="btn btn-sm btn-secondary" id="btn-prev-page" disabled>← Prev</button>
+            <button class="btn btn-sm btn-secondary" id="btn-next-page" disabled>Next →</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ── Tab 3: Contacts ────────────────────────────────────────────── -->
+    <main id="tab-contacts" class="tab-content">
+      <div class="contacts-header">
+        <h2>Contacts</h2>
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="search" id="contacts-search" class="search-input" placeholder="Search contacts…" />
+        </div>
+        <button class="btn btn-primary" id="btn-add-contact">+ Add Contact</button>
+      </div>
+
+      <div class="contacts-grid" id="contacts-grid">
+        <div style="text-align:center;padding:32px;color:var(--text-muted)">Loading…</div>
+      </div>
+    </main>
+
+    <!-- ── Tab 4: Dashboard ───────────────────────────────────────────── -->
+    <main id="tab-dashboard" class="tab-content">
+      <div class="stats-grid">
+        <div class="stat-card active">
+          <span class="stat-label">Calls Today</span>
+          <span class="stat-value" id="dash-today-calls">—</span>
+        </div>
+        <div class="stat-card missed">
+          <span class="stat-label">Missed Today</span>
+          <span class="stat-value" id="dash-missed-today">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Minutes Today</span>
+          <span class="stat-value" id="dash-total-minutes">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">All-Time Calls</span>
+          <span class="stat-value" id="dash-total-all">—</span>
+        </div>
+      </div>
+
+      <div class="dash-grid">
+        <div class="card">
+          <div class="card-header"><h3>Recent Calls</h3></div>
+          <div class="card-body" id="dash-recent-calls" style="padding:0 20px">
+            <div style="text-align:center;padding:20px;color:var(--text-muted)">Loading…</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3>Calls by Hour — Today</h3></div>
+          <div class="card-body">
+            <div class="hour-chart" id="hour-chart"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+  </div><!-- /.app-shell -->
+
+  <!-- ── Incoming Call Overlay ──────────────────────────────────────────── -->
+  <div class="incoming-overlay" id="incoming-overlay">
+    <div class="incoming-card">
+      <div class="incoming-ring-anim">📲</div>
+      <div class="incoming-label">Incoming Call</div>
+      <div class="incoming-number" id="incoming-number"></div>
+      <div class="incoming-name" id="incoming-name"></div>
+      <div class="incoming-actions">
+        <button class="incoming-btn incoming-btn-decline" id="btn-decline" title="Decline">📵</button>
+        <button class="incoming-btn incoming-btn-answer" id="btn-answer" title="Answer">✅</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Note Modal ─────────────────────────────────────────────────────── -->
+  <div class="modal-overlay" id="note-modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Call Note</h3>
+        <button class="btn btn-ghost btn-icon" data-close-modal>✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="note-call-info" id="note-call-info"></p>
+        <div class="form-group">
+          <label class="form-label" for="note-textarea">Notes</label>
+          <textarea id="note-textarea" class="form-input" placeholder="Add notes about this call…" rows="5"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close-modal>Cancel</button>
+        <button class="btn btn-primary" id="btn-save-note">Save Note</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Contact Modal ──────────────────────────────────────────────────── -->
+  <div class="modal-overlay" id="contact-modal-overlay">
+    <div class="modal" style="max-width:520px">
+      <div class="modal-header">
+        <h3 id="contact-modal-title">Add Contact</h3>
+        <button class="btn btn-ghost btn-icon" data-close-modal>✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="contact-form" novalidate>
+          <div class="contact-form-grid">
+            <div class="form-group">
+              <label class="form-label" for="cf-name">Name *</label>
+              <input type="text" id="cf-name" class="form-input" placeholder="Full name" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="cf-phone">Phone *</label>
+              <input type="tel" id="cf-phone" class="form-input" placeholder="+1xxxxxxxxxx" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="cf-email">Email</label>
+              <input type="email" id="cf-email" class="form-input" placeholder="email@example.com" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="cf-company">Company</label>
+              <input type="text" id="cf-company" class="form-input" placeholder="Company name" />
+            </div>
+            <div class="form-group full-width">
+              <label class="form-label" for="cf-notes">Notes</label>
+              <textarea id="cf-notes" class="form-input" placeholder="Optional notes…" rows="3"></textarea>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close-modal>Cancel</button>
+        <button class="btn btn-primary" id="btn-save-contact">Save Contact</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Twilio Voice SDK (CDN) ─────────────────────────────────────────── -->
+  <script src="https://sdk.twilio.com/js/client/v2.0/twilio.js"></script>
+
+  <!-- ── App Scripts ────────────────────────────────────────────────────── -->
+  <script src="/js/api.js"></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/notifications.js"></script>
+  <script src="/js/phone.js"></script>
+  <script src="/js/call-log.js"></script>
+  <script src="/js/contacts.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
