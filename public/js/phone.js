@@ -94,6 +94,12 @@ const Phone = (() => {
 
   // ── Device setup ─────────────────────────────────────────────────────────
   async function initDevice() {
+    if (typeof Twilio === 'undefined' || !Twilio.Device) {
+      setStatus('offline', 'Offline');
+      UI.toast('Twilio SDK failed to load. Check your internet connection and reload.', 'error', 8000);
+      console.error('[Phone] Twilio SDK not loaded — check CDN URL and CSP headers');
+      return;
+    }
     try {
       setStatus('connecting', 'Connecting...');
       const data = await API.token.get();
