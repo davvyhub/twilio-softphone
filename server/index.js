@@ -6,6 +6,7 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const session = require('express-session');
+const SQLiteStore = require('connect-sqlite3')(session);
 const path = require('path');
 
 const config = require('./config');
@@ -64,6 +65,11 @@ app.use(express.urlencoded({ extended: false }));
 
 // ── Session ────────────────────────────────────────────────────────────────
 app.use(session({
+  store: new SQLiteStore({
+    db: 'sessions.db',
+    dir: path.resolve(process.cwd(), 'database'),
+    ttl: 86400, // 24 hours in seconds
+  }),
   secret: config.server.sessionSecret,
   resave: false,
   saveUninitialized: false,
