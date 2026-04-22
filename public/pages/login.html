@@ -245,7 +245,8 @@
 
         const data = await res.json();
 
-        if (res.ok && data.success) {
+        if (res.ok && data.success && data.token) {
+          localStorage.setItem('sp_auth_token', data.token);
           window.location.href = '/pages/app.html';
         } else {
           showError(data.error || 'Invalid password. Please try again.');

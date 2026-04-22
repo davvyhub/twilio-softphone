@@ -5,8 +5,6 @@ require('dotenv').config();
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
-const session = require('express-session');
-const SQLiteStore = require('connect-sqlite3')(session);
 const path = require('path');
 
 const config = require('./config');
@@ -58,30 +56,11 @@ app.use(cors({
 }));
 
 // ── Body parsers ───────────────────────────────────────────────────────────
-// Must come BEFORE session so Twilio signature validation can read req.body
 app.use('/webhook', express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// ── Session ────────────────────────────────────────────────────────────────
-app.use(session({
-  store: new SQLiteStore({
-    db: 'sessions.db',
-    dir: path.resolve(process.cwd(), 'database'),
-    ttl: 86400, // 24 hours in seconds
-  }),
-  secret: config.server.sessionSecret,
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    httpOnly: true,
-    secure: config.server.isProduction && config.app.publicUrl.startsWith('https://'),
-    sameSite: 'strict',
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
-  },
-}));
-
-// ── Trust proxy for rate limiting behind reverse proxy ─────────────────────
+// ── Trust proxy for rate limiting ──────────────────────────────────────────
 if (config.server.isProduction) {
   app.set('trust proxy', 1);
 }

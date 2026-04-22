@@ -83,14 +83,22 @@ const Dashboard = (() => {
 
 // ── App bootstrap ─────────────────────────────────────────────────────────
 (async function bootstrap() {
-  // Check auth status
+  // Check auth token in localStorage
+  if (!API.getToken()) {
+    window.location.href = '/pages/login.html';
+    return;
+  }
+
+  // Verify token is still valid server-side
   try {
     const status = await API.auth.status();
     if (!status.loggedIn) {
+      API.clearToken();
       window.location.href = '/pages/login.html';
       return;
     }
   } catch {
+    API.clearToken();
     window.location.href = '/pages/login.html';
     return;
   }
@@ -116,12 +124,9 @@ const Dashboard = (() => {
   const logoutBtn = document.getElementById('btn-logout');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
-      try {
-        await API.auth.logout();
-        window.location.href = '/pages/login.html';
-      } catch {
-        window.location.href = '/pages/login.html';
-      }
+      API.clearToken();
+      try { await API.auth.logout(); } catch {}
+      window.location.href = '/pages/login.html';
     });
   }
 })();
